@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heaps.io Font Conversion</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #output { white-space: pre-wrap; font-family: monospace; border: 1px solid #ccc; padding: 10px; margin-top: 10px; }
+        button { margin-top: 10px; }
+        #status { color: blue; margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Heaps.io Font Conversion</h1>
+    <p>Upload a TTF font file, specify options, and run the command. Output files will be available for download.</p>
+
+    <label for="fontFile">Upload Font File (TTF):</label>
+    <input type="file" id="fontFile" accept=".ttf"><br><br>
+
+    <label for="fontSize">Font Size:</label>
+    <select id="fontSize">
+        <option value="8">8</option>
+        <option value="10">10</option>
+        <option value="12">12</option>
+        <option value="14">14</option>
+        <option value="16">16</option>
+        <option value="18">18</option>
+        <option value="20">20</option>
+        <option value="24">24</option>
+        <option value="28">28</option>
+        <option value="32" selected>32</option>
+        <option value="36">36</option>
+        <option value="40">40</option>
+        <option value="48">48</option>
+        <option value="64">64</option>
+    </select><br><br>
+	
+    <button id="runButton">Run FontBM</button>
+    <div id="status"></div>
+
+	
+	<br>
+	<br>
+	
+    <label for="args">FontBM Command-line Arguments (e.g., --font-size 32 --output output):</label><br>
+    <input type="text" id="args" value="--font-size 32 --output output" style="width: 100%;"><br>
+
+
+    <h2>Console Output:</h2>
+    <div id="output"></div>
+
+    <h2>Generated Files:</h2>
+    <ul id="downloadList"></ul>
+
+    <script>
+        // Promise for module readiness
+        let moduleReadyResolve;
+        const moduleReady = new Promise((resolve) => {
+            moduleReadyResolve = resolve;
+        });
+
+        // Define Module with overrides
+        var Module = {
+            noInitialRun: true,
+            noExitRuntime: true,
+            print: function(text) {
+                document.getElementById('output').innerHTML += text + '\n';
+            },
+            printErr: function(text) {
+                document.getElementById('output').innerHTML += 'ERROR: ' + text + '\n';
+            },
+            onRuntimeInitialized: function() {
+                console.log('Module initialized');
+                moduleReadyResolve();
+            }
+        };
+    </script>
+    <script src="fontbm.js"></script>
+    <script>
+        // Function to download a file from FS
+        function downloadFile(filename, content) {
+            const blob = new Blob([content], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.textContent = 'Download ' + filename;
+            const li = document.createElement('li');
+            li.appendChild(a);
+            document.getElementById('downloadList').appendChild(li);
+        }
+
+        // Function to update args from dropdown
+        function updateArgs() {
+            let args = document.getElementById('args').value.trim();
+            let parts = args.split(/\s+/);
+            let fsIndex = parts.indexOf('--font-size');
+            const newSize = document.getElementById('fontSize').value;
+            if (fsIndex !== -1) {
+                if (fsIndex + 1 < parts.length) {
+                    parts[fsIndex + 1] = newSize;
+                } else {
+                    parts.push(newSize);
+                }
+            } else {
+                parts.unshift('--font-size', newSize);
+            }
+            document.getElementById('args').value = parts.join(' ');
+        }
+
+        // Sync dropdown from initial args
+        function syncDropdown() {
+            let args = document.getElementById('args').value.trim();
+            let parts = args.split(/\s+/);
+            let fsIndex = parts.indexOf('--font-size');
+            if (fsIndex !== -1 && fsIndex + 1 < parts.length) {
+                let size = parts[fsIndex + 1];
+                const option = document.querySelector(`#fontSize option[value="${size}"]`);
+                if (option) {
+                    document.getElementById('fontSize').value = size;
+                }
+            }
+        }
+
+        // Set up event listener
+        document.getElementById('fontSize').addEventListener('change', updateArgs);
+
+        // Sync on load
+        syncDropdown();
+
+        // Run button handler
+        document.getElementById('runButton').addEventListener('click', async function() {
+            document.getElementById('output').innerHTML = '';
+            document.getElementById('downloadList').innerHTML = '';
+
+            const fontFileInput = document.getElementById('fontFile');
+            //const extraFilesInput = document.getElementById('extraFiles');
+            const argsInput = document.getElementById('args').value;
+
+            if (!fontFileInput.files.length) {
+                alert('Please upload a font file.');
+                return;
+            }
+
+            const runButton = document.getElementById('runButton');
+            runButton.disabled = true;
+            runButton.textContent = 'Running...';
+            const status = document.getElementById('status');
+            status.textContent = 'Processing, please wait...';
+
+            // Wait for module to be ready
+            await moduleReady;
+
+            // Parse arguments
+            let args = argsInput.split(/\s+/).filter(arg => arg.trim() !== '');
+			args.push('--font-file');
+            args.push('input.ttf');  // Append the font file path
+
+            // Collect uploaded extra file names
+            const uploadedExtras = [];
+
+            // Mount files to FS
+            Module.FS.createPath('/', '/', true, true);
+
+            // Write font file
+            const fontFile = fontFileInput.files[0];
+            const fontBuffer = await fontFile.arrayBuffer();
+            const fontData = new Uint8Array(fontBuffer);
+            Module.FS.writeFile('/input.ttf', fontData);
+
+
+            // Run the main function, catching exit or exceptions
+            try {
+                Module.callMain(args);
+            } catch (e) {
+                if (e instanceof ExitStatus) {
+                    Module.print('Program exited with status ' + e.status);
+                } else if (typeof e === 'number') {
+                    Module.print('Caught WebAssembly exception (pointer): ' + e);
+                    Module.print('To see the full error message and stack trace, you may need to rebuild the Emscripten module with additional flags:');
+                    Module.print('- Add "-sEXPORT_EXCEPTION_HANDLING_HELPERS=1" to CMAKE_EXE_LINKER_FLAGS');
+                    Module.print('- Also consider "-sDEMANGLE_SUPPORT=1" and "-sASSERTIONS=1" for better debugging.');
+                    Module.print('If using C++, ensure exceptions are enabled with "-fexceptions".');
+                } else {
+                    Module.print('Caught unexpected error: ' + e.message);
+                }
+            }
+
+            // Find generated files (assuming .png and .fnt)
+            const files = Module.FS.readdir('/');
+            files.forEach(file => {
+                if (file !== '.' && file !== '..' && file !== 'input.ttf' && !uploadedExtras.includes(file)) {
+                    const path = '/' + file;
+                    if (Module.FS.isFile(Module.FS.stat(path).mode)) {
+                        try {
+                            const content = Module.FS.readFile(path);
+                            downloadFile(file, content);
+                        } catch (e) {
+                            console.error('Could not read ' + file);
+                        }
+                    }
+                }
+            });
+
+            runButton.disabled = false;
+            runButton.textContent = 'Run FontBM';
+            status.textContent = '';
+        });
+    </script>
+</body>
+</html>
