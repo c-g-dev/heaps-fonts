@@ -54,13 +54,13 @@
     <ul id="downloadList"></ul>
 
     <script>
-        // Promise for module readiness
+        
         let moduleReadyResolve;
         const moduleReady = new Promise((resolve) => {
             moduleReadyResolve = resolve;
         });
 
-        // Define Module with overrides
+        
         var Module = {
             noInitialRun: true,
             noExitRuntime: true,
@@ -78,7 +78,7 @@
     </script>
     <script src="fontbm.js"></script>
     <script>
-        // Function to download a file from FS
+        
         function downloadFile(filename, content) {
             const blob = new Blob([content], { type: 'application/octet-stream' });
             const url = URL.createObjectURL(blob);
@@ -91,7 +91,7 @@
             document.getElementById('downloadList').appendChild(li);
         }
 
-        // Function to update args from dropdown
+        
         function updateArgs() {
             let args = document.getElementById('args').value.trim();
             let parts = args.split(/\s+/);
@@ -109,7 +109,7 @@
             document.getElementById('args').value = parts.join(' ');
         }
 
-        // Sync dropdown from initial args
+        
         function syncDropdown() {
             let args = document.getElementById('args').value.trim();
             let parts = args.split(/\s+/);
@@ -123,19 +123,19 @@
             }
         }
 
-        // Set up event listener
+        
         document.getElementById('fontSize').addEventListener('change', updateArgs);
 
-        // Sync on load
+        
         syncDropdown();
 
-        // Run button handler
+        
         document.getElementById('runButton').addEventListener('click', async function() {
             document.getElementById('output').innerHTML = '';
             document.getElementById('downloadList').innerHTML = '';
 
             const fontFileInput = document.getElementById('fontFile');
-            //const extraFilesInput = document.getElementById('extraFiles');
+            
             const argsInput = document.getElementById('args').value;
 
             if (!fontFileInput.files.length) {
@@ -149,28 +149,28 @@
             const status = document.getElementById('status');
             status.textContent = 'Processing, please wait...';
 
-            // Wait for module to be ready
+            
             await moduleReady;
 
-            // Parse arguments
+            
             let args = argsInput.split(/\s+/).filter(arg => arg.trim() !== '');
 			args.push('--font-file');
-            args.push('input.ttf');  // Append the font file path
+            args.push('input.ttf');  
 
-            // Collect uploaded extra file names
+            
             const uploadedExtras = [];
 
-            // Mount files to FS
+            
             Module.FS.createPath('/', '/', true, true);
 
-            // Write font file
+            
             const fontFile = fontFileInput.files[0];
             const fontBuffer = await fontFile.arrayBuffer();
             const fontData = new Uint8Array(fontBuffer);
             Module.FS.writeFile('/input.ttf', fontData);
 
 
-            // Run the main function, catching exit or exceptions
+            
             try {
                 Module.callMain(args);
             } catch (e) {
@@ -187,7 +187,7 @@
                 }
             }
 
-            // Find generated files (assuming .png and .fnt)
+            
             const files = Module.FS.readdir('/');
             files.forEach(file => {
                 if (file !== '.' && file !== '..' && file !== 'input.ttf' && !uploadedExtras.includes(file)) {
